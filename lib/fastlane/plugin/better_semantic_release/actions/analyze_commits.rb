@@ -1,5 +1,5 @@
 require 'fastlane/action'
-require_relative '../helper/semantic_release_helper'
+require_relative '../helper/better_semantic_release_helper'
 
 module Fastlane
   module Actions
@@ -33,7 +33,7 @@ module Fastlane
       end
 
       def self.get_commits_from_hash(params)
-        commits = Helper::SemanticReleaseHelper.git_log(
+        commits = Helper::BetterSemanticReleaseHelper.git_log(
           pretty: '%s|%b|>',
           start: params[:hash],
           debug: params[:debug]
@@ -73,21 +73,19 @@ module Fastlane
 
         # Tag's format is v2.3.4-5-g7685948
         # See git describe man page for more info
-        tag_name = tag.split('-')[0...-2].join('-').strip
-        parsed_version = tag_name.match(params[:tag_version_match])
+        version = tag.split('/')[2]
 
-        if parsed_version.nil?
-          UI.user_error!("Error while parsing version from tag #{tag_name} by using tag_version_match - #{params[:tag_version_match]}. Please check if the tag contains version as you expect and if you are using single brackets for tag_version_match parameter.")
+        if version.nil?
+          UI.user_error!("Error while parsing version from tag #{tag}")
         end
 
-        version = parsed_version[0]
         # Get a hash of last version tag
         hash = get_last_tag_hash(
-          tag_name: tag_name,
+          tag_name: tag,
           debug: params[:debug]
         )
 
-        UI.message("Found a tag #{tag_name} associated with version #{version}")
+        UI.message("Found a tag #{tag} associated with version #{version}")
 
         return {
           hash: hash,
@@ -133,7 +131,7 @@ module Fastlane
           subject = parts[0].strip
           # conventional commits are in format
           # type: subject (fix: app crash - for example)
-          commit = Helper::SemanticReleaseHelper.parse_commit(
+          commit = Helper::BetterSemanticReleaseHelper.parse_commit(
             commit_subject: subject,
             commit_body: parts[1],
             releases: releases,
@@ -169,7 +167,7 @@ module Fastlane
 
         next_version = "#{next_major}.#{next_minor}.#{next_patch}"
 
-        is_next_version_releasable = Helper::SemanticReleaseHelper.semver_gt(next_version, version)
+        is_next_version_releasable = Helper::BetterSemanticReleaseHelper.semver_gt(next_version, version)
 
         Actions.lane_context[SharedValues::RELEASE_ANALYZED] = true
         Actions.lane_context[SharedValues::RELEASE_IS_NEXT_VERSION_HIGHER] = is_next_version_releasable
@@ -218,7 +216,7 @@ module Fastlane
         splitted.each do |line|
           # conventional commits are in format
           # type: subject (fix: app crash - for example)
-          commit = Helper::SemanticReleaseHelper.parse_commit(
+          commit = Helper::BetterSemanticReleaseHelper.parse_commit(
             commit_subject: line.split("|")[0],
             commit_body: line.split("|")[1],
             releases: releases,
@@ -284,11 +282,11 @@ module Fastlane
             verify_block: proc do |value|
               case value
               when String
-                unless Helper::SemanticReleaseHelper.format_patterns.key?(value)
+                unless Helper::BetterSemanticReleaseHelper.format_patterns.key?(value)
                   UI.user_error!("Invalid format preset: #{value}")
                 end
 
-                pattern = Helper::SemanticReleaseHelper.format_patterns[value]
+                pattern = Helper::BetterSemanticReleaseHelper.format_patterns[value]
               when Regexp
                 pattern = value
               else

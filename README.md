@@ -1,14 +1,16 @@
-# semantic_release plugin for `fastlane`
+# better_semantic_release plugin for `fastlane`
 
-[![CircleCI](https://circleci.com/gh/xotahal/fastlane-plugin-semantic_release.svg?style=svg)](https://circleci.com/gh/xotahal/fastlane-plugin-semantic_release) [![License](https://img.shields.io/github/license/SiarheiFedartsou/fastlane-plugin-versioning.svg)](https://github.com/SiarheiFedartsou/fastlane-plugin-versioning/blob/master/LICENSE) [![Gem Version](https://badge.fury.io/rb/fastlane-plugin-semantic_release.svg)](https://badge.fury.io/rb/fastlane-plugin-semantic_release) [![fastlane Plugin Badge](https://rawcdn.githack.com/fastlane/fastlane/master/fastlane/assets/plugin-badge.svg)](https://rubygems.org/gems/fastlane-plugin-versioning)
+[![License](https://img.shields.io/github/license/SiarheiFedartsou/fastlane-plugin-versioning.svg)](https://github.com/SiarheiFedartsou/fastlane-plugin-versioning/blob/master/LICENSE) [![Gem Version](https://badge.fury.io/rb/fastlane-plugin-better_semantic_release.svg)](https://badge.fury.io/rb/fastlane-plugin-better_semantic_release) [![fastlane Plugin Badge](https://rawcdn.githack.com/fastlane/fastlane/master/fastlane/assets/plugin-badge.svg)](https://rubygems.org/gems/fastlane-plugin-versioning)
 
 ## Getting Started
 
 ```
-fastlane add_plugin semantic_release
+fastlane add_plugin better_semantic_release
 ```
 
 ## About
+
+Original plugin not maintained and not working out of the box
 
 Automated version managment and generator of release notes. Inspired by [semantic-release](https://github.com/semantic-release/semantic-release) for npm packages. Based on [conventional commits](https://www.conventionalcommits.org/).
 
