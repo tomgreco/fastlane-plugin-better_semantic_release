@@ -7,11 +7,11 @@ require 'fastlane/plugin/better_semantic_release/version'
 Gem::Specification.new do |spec|
   spec.name          = 'fastlane-plugin-better_semantic_release'
   spec.version       = Fastlane::BetterSemanticRelease::VERSION
-  spec.author        = 'Jiří Otáhal'
-  spec.email         = 'xotahal@gmail.com'
+  spec.author        = 'Tom Greco'
+  spec.email         = 'tom.greco@scanifly.com'
 
   spec.summary       = 'Automated version managment and generator of release notes.'
-  spec.homepage      = "https://github.com/xotahal/fastlane-plugin-better_semantic_release"
+  spec.homepage      = "https://github.com/tomgreco/fastlane-plugin-better_semantic_release"
   spec.license       = "MIT"
 
   spec.files         = Dir["lib/**/*"] + %w(README.md LICENSE)
