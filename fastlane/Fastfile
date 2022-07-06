@@ -34,7 +34,7 @@ lane :publish do
   push_git_tags
 
   set_github_release(
-    repository_name: "xotahal/fastlane-plugin-better_semantic_release",
+    repository_name: "tomgreco/fastlane-plugin-better_semantic_release",
     api_token: ENV["GH_TOKEN"],
     name: next_version,
     tag_name: tag,
