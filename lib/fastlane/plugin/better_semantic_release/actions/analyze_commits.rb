@@ -169,7 +169,7 @@ module Fastlane
             end
 
             next_version = "#{next_major}.#{next_minor}.#{next_patch}"
-            UI.message("#{next_version}: #{subject}") if params[:show_version_path]
+            UI.message("#{next_version}") if params[:show_version_path]
           end
         end
 
