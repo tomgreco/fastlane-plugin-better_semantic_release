@@ -34,7 +34,8 @@ module Fastlane
           is_valid: false,
           subject: commit_subject,
           is_merge: !(commit_subject =~ /^Merge/).nil?,
-          type: 'no_type'
+          type: 'no_type',
+          is_codepush_friendly: true
         }
 
         unless matched.nil?

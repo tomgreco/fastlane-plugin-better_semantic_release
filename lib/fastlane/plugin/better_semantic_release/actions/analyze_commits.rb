@@ -28,8 +28,16 @@ module Fastlane
       end
 
       def self.get_last_tag_hash(params)
-        command = "git rev-list -n 1 refs/tags/#{params[:tag_name]}"
-        Actions.sh(command, log: params[:debug]).chomp
+        #command = "git rev-list -n 1 refs/tags/#{params[:tag_name]}"
+        #Actions.sh(command, log: params[:debug]).chomp
+
+        command = "git log -2 --pretty=format:'%H' #{params[:tag_name]}"
+        command_output = Actions.sh(command, log: false).chomp
+        hashes = command_output.split("\n")
+        if hashes.length > 1
+          return hashes[1]
+        end
+        return nil
       end
 
       def self.get_commits_from_hash(params)
@@ -42,15 +50,14 @@ module Fastlane
       end
 
       def self.get_beginning_of_next_sprint(params)
-        # command to get first commit
-        git_command = 'git rev-list --max-parents=0 HEAD'
-
         tag = get_last_tag(match: params[:match], debug: params[:debug])
 
         # if tag doesn't exist it get's first commit or fallback tag (v*.*.*)
         if tag.empty?
           UI.message("It couldn't match tag for #{params[:match]}. Check if first commit can be taken as a beginning of next release")
           # If there is no tag found we taking the first commit of current branch
+           # command to get first commit
+          git_command = 'git rev-list --max-parents=0 HEAD'
           hash_lines = Actions.sh("#{git_command} | wc -l", log: params[:debug]).chomp
 
           if hash_lines.to_i == 1
@@ -126,43 +133,44 @@ module Fastlane
         releases = params[:releases]
 
         format_pattern = lane_context[SharedValues::CONVENTIONAL_CHANGELOG_ACTION_FORMAT_PATTERN]
-        splitted.each do |line|
-          parts = line.split("|")
-          subject = parts[0].strip
-          # conventional commits are in format
-          # type: subject (fix: app crash - for example)
-          commit = Helper::BetterSemanticReleaseHelper.parse_commit(
-            commit_subject: subject,
-            commit_body: parts[1],
-            releases: releases,
-            pattern: format_pattern
-          )
+        splitted.each do |squashed_commit|
+          commits = squashed_commit.split("*")
+          commits.drop(1).each do |line|
+            # conventional commits are in format
+            # type: subject (fix: app crash - for example)
+            commit = Helper::BetterSemanticReleaseHelper.parse_commit(
+              commit_subject: line,
+              commit_body: line.split(":")[1].strip,
+              releases: releases,
+              pattern: format_pattern
+            )
 
-          unless commit[:scope].nil?
-            # if this commit has a scope, then we need to inspect to see if that is one of the scopes we're trying to exclude
-            scope = commit[:scope]
-            scopes_to_ignore = params[:ignore_scopes]
-            # if it is, we'll skip this commit when bumping versions
-            next if scopes_to_ignore.include?(scope) #=> true
+            unless commit[:scope].nil?
+              # if this commit has a scope, then we need to inspect to see if that is one of the scopes we're trying to exclude
+              scope = commit[:scope]
+              scopes_to_ignore = params[:ignore_scopes]
+              # if it is, we'll skip this commit when bumping versions
+              next if scopes_to_ignore.include?(scope) #=> true
+            end
+
+            if commit[:release] == "major" || commit[:is_breaking_change]
+              next_major += 1
+              next_minor = 0
+              next_patch = 0
+            elsif commit[:release] == "minor"
+              next_minor += 1
+              next_patch = 0
+            elsif commit[:release] == "patch"
+              next_patch += 1
+            end
+
+            unless commit[:is_codepush_friendly]
+              is_next_version_compatible_with_codepush = false
+            end
+
+            next_version = "#{next_major}.#{next_minor}.#{next_patch}"
+            UI.message("#{next_version}: #{subject}") if params[:show_version_path]
           end
-
-          if commit[:release] == "major" || commit[:is_breaking_change]
-            next_major += 1
-            next_minor = 0
-            next_patch = 0
-          elsif commit[:release] == "minor"
-            next_minor += 1
-            next_patch = 0
-          elsif commit[:release] == "patch"
-            next_patch += 1
-          end
-
-          unless commit[:is_codepush_friendly]
-            is_next_version_compatible_with_codepush = false
-          end
-
-          next_version = "#{next_major}.#{next_minor}.#{next_patch}"
-          UI.message("#{next_version}: #{subject}") if params[:show_version_path]
         end
 
         next_version = "#{next_major}.#{next_minor}.#{next_patch}"
@@ -188,7 +196,7 @@ module Fastlane
       end
 
       def self.is_codepush_friendly(params)
-        git_command = 'git rev-list --max-parents=0 HEAD'
+        git_command = "git rev-list --max-parents=#{params[:start_hash]} HEAD"
         # Begining of the branch is taken for codepush analysis
         hash_lines = Actions.sh("#{git_command} | wc -l", log: params[:debug]).chomp
         hash = Actions.sh(git_command, log: params[:debug]).chomp
@@ -214,29 +222,34 @@ module Fastlane
 
         format_pattern = lane_context[SharedValues::CONVENTIONAL_CHANGELOG_ACTION_FORMAT_PATTERN]
         splitted.each do |line|
-          # conventional commits are in format
-          # type: subject (fix: app crash - for example)
-          commit = Helper::BetterSemanticReleaseHelper.parse_commit(
-            commit_subject: line.split("|")[0],
-            commit_body: line.split("|")[1],
-            releases: releases,
-            pattern: format_pattern,
-            codepush_friendly: codepush_friendly
-          )
+          parts = line.split(':')
+          if parts.length > 1
+            # conventional commits are in format
+            # type: subject (fix: app crash - for example)
+            commit = Helper::BetterSemanticReleaseHelper.parse_commit(
+              commit_subject: line,
+              commit_body: parts[1].strip,
+              releases: releases,
+              pattern: format_pattern,
+              codepush_friendly: codepush_friendly
+            )
 
-          if commit[:release] == "major" || commit[:is_breaking_change]
-            next_major += 1
-            next_minor = 0
-            next_patch = 0
-          elsif commit[:release] == "minor"
-            next_minor += 1
-            next_patch = 0
-          elsif commit[:release] == "patch"
-            next_patch += 1
-          end
+            #UI.message commit
 
-          unless commit[:is_codepush_friendly]
-            last_incompatible_codepush_version = "#{next_major}.#{next_minor}.#{next_patch}"
+            if commit[:release] == "major" || commit[:is_breaking_change]
+              next_major += 1
+              next_minor = 0
+              next_patch = 0
+            elsif commit[:release] == "minor"
+              next_minor += 1
+              next_patch = 0
+            elsif commit[:release] == "patch"
+              next_patch += 1
+            end
+
+            unless commit[:is_codepush_friendly]
+              last_incompatible_codepush_version = "#{next_major}.#{next_minor}.#{next_patch}"
+            end
           end
         end
 
@@ -304,7 +317,7 @@ module Fastlane
           FastlaneCore::ConfigItem.new(
             key: :codepush_friendly,
             description: "These types are consider as codepush friendly automatically",
-            default_value: ["chore", "test", "docs"],
+            default_value: ["build", "chore", "ci", "docs", "fix", "feat", "perf", "refactor", "style", "test"],
             type: Array,
             optional: true
           ),
@@ -332,6 +345,13 @@ module Fastlane
             description: "True if you want to log out a debug info",
             default_value: false,
             type: Boolean,
+            optional: true
+          ),
+          FastlaneCore::ConfigItem.new(
+            key: :start_hash,
+            description: "Hash to start from when calculating versions",
+            default_value: "HEAD",
+            type: String,
             optional: true
           )
         ]
