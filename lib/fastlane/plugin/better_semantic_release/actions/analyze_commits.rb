@@ -136,40 +136,43 @@ module Fastlane
         splitted.each do |squashed_commit|
           commits = squashed_commit.split("*")
           commits.drop(1).each do |line|
-            # conventional commits are in format
-            # type: subject (fix: app crash - for example)
-            commit = Helper::BetterSemanticReleaseHelper.parse_commit(
-              commit_subject: line,
-              commit_body: line.split(":")[1].strip,
-              releases: releases,
-              pattern: format_pattern
-            )
+            parts = line.split(":")
+            if parts.length > 1
+              # conventional commits are in format
+              # type: subject (fix: app crash - for example)
+              commit = Helper::BetterSemanticReleaseHelper.parse_commit(
+                commit_subject: line,
+                commit_body: parts[1].strip,
+                releases: releases,
+                pattern: format_pattern
+              )
 
-            unless commit[:scope].nil?
-              # if this commit has a scope, then we need to inspect to see if that is one of the scopes we're trying to exclude
-              scope = commit[:scope]
-              scopes_to_ignore = params[:ignore_scopes]
-              # if it is, we'll skip this commit when bumping versions
-              next if scopes_to_ignore.include?(scope) #=> true
+              unless commit[:scope].nil?
+                # if this commit has a scope, then we need to inspect to see if that is one of the scopes we're trying to exclude
+                scope = commit[:scope]
+                scopes_to_ignore = params[:ignore_scopes]
+                # if it is, we'll skip this commit when bumping versions
+                next if scopes_to_ignore.include?(scope) #=> true
+              end
+
+              if commit[:release] == "major" || commit[:is_breaking_change]
+                next_major += 1
+                next_minor = 0
+                next_patch = 0
+              elsif commit[:release] == "minor"
+                next_minor += 1
+                next_patch = 0
+              elsif commit[:release] == "patch"
+                next_patch += 1
+              end
+
+              unless commit[:is_codepush_friendly]
+                is_next_version_compatible_with_codepush = false
+              end
+
+              next_version = "#{next_major}.#{next_minor}.#{next_patch}"
+              UI.message("#{next_version}") if params[:show_version_path]
             end
-
-            if commit[:release] == "major" || commit[:is_breaking_change]
-              next_major += 1
-              next_minor = 0
-              next_patch = 0
-            elsif commit[:release] == "minor"
-              next_minor += 1
-              next_patch = 0
-            elsif commit[:release] == "patch"
-              next_patch += 1
-            end
-
-            unless commit[:is_codepush_friendly]
-              is_next_version_compatible_with_codepush = false
-            end
-
-            next_version = "#{next_major}.#{next_minor}.#{next_patch}"
-            UI.message("#{next_version}") if params[:show_version_path]
           end
         end
 
