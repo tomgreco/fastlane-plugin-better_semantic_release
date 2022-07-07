@@ -314,7 +314,7 @@ module Fastlane
           FastlaneCore::ConfigItem.new(
             key: :releases,
             description: "Map types of commit to release (major, minor, patch)",
-            default_value: { fix: "patch", feat: "minor" },
+            default_value: { build: "patch", chore: "patch", ci: "patch", fix: "patch", feat: "minor", perf: "patch", refactor: "patch", style: "patch" },
             type: Hash
           ),
           FastlaneCore::ConfigItem.new(

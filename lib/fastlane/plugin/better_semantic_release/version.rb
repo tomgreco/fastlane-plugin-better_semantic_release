@@ -1,1 +1,1 @@
-module Fastlane module BetterSemanticRelease VERSION = "2.0.4" end end
+module Fastlane module BetterSemanticRelease VERSION = "2.0.5" end end
