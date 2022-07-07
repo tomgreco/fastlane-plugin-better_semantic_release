@@ -172,33 +172,36 @@ module Fastlane
         end
       end
 
-      def self.parse_commits(commits, params)
+      def self.parse_commits(squashed_commits, params)
         parsed = []
         # %s|%b|%H|%h|%an|%at
         format_pattern = lane_context[SharedValues::CONVENTIONAL_CHANGELOG_ACTION_FORMAT_PATTERN]
-        commits.each do |line|
-          splitted = line.split("|")
+        squashed_commits.each do |squashed_commit|
+          commits = squashed_commit.split("*")
+          commits.drop(1).each do |line|
+            splitted = line.split("|")
 
-          commit = Helper::BetterSemanticReleaseHelper.parse_commit(
-            commit_subject: splitted[0],
-            commit_body: splitted[1],
-            pattern: format_pattern
-          )
+            commit = Helper::BetterSemanticReleaseHelper.parse_commit(
+              commit_subject: splitted[0],
+              commit_body: splitted[1],
+              pattern: format_pattern
+            )
 
-          unless commit[:scope].nil?
-            # if this commit has a scope, then we need to inspect to see if that is one of the scopes we're trying to exclude
-            scope = commit[:scope]
-            scopes_to_ignore = params[:ignore_scopes]
-            # if it is, we'll skip this commit when bumping versions
-            next if scopes_to_ignore.include?(scope) #=> true
+            unless commit[:scope].nil?
+              # if this commit has a scope, then we need to inspect to see if that is one of the scopes we're trying to exclude
+              scope = commit[:scope]
+              scopes_to_ignore = params[:ignore_scopes]
+              # if it is, we'll skip this commit when bumping versions
+              next if scopes_to_ignore.include?(scope) #=> true
+            end
+
+            commit[:hash] = splitted[2]
+            commit[:short_hash] = splitted[3]
+            commit[:author_name] = splitted[4]
+            commit[:commit_date] = splitted[5]
+
+            parsed.push(commit)
           end
-
-          commit[:hash] = splitted[2]
-          commit[:short_hash] = splitted[3]
-          commit[:author_name] = splitted[4]
-          commit[:commit_date] = splitted[5]
-
-          parsed.push(commit)
         end
 
         parsed
@@ -248,6 +251,8 @@ module Fastlane
             key: :sections,
             description: "Map type to section title",
             default_value: {
+              build: "Building system",
+              ci: "CICD",
               feat: "Features",
               fix: "Bug fixes",
               refactor: "Code refactoring",
@@ -255,6 +260,7 @@ module Fastlane
               chore: "Building system",
               test: "Testing",
               docs: "Documentation",
+              style: "Stylistic",
               no_type: "Other work"
             },
             type: Hash,
@@ -277,7 +283,7 @@ module Fastlane
           FastlaneCore::ConfigItem.new(
             key: :display_links,
             description: "Whether you want to display the links to commit IDs",
-            default_value: true,
+            default_value: false,
             type: Boolean,
             optional: true
           ),
