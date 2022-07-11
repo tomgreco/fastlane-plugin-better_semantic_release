@@ -257,7 +257,7 @@ module Fastlane
               fix: "Bug fixes",
               refactor: "Code refactoring",
               perf: "Performance improvements",
-              chore: "Building system",
+              chore: "Chores",
               test: "Testing",
               docs: "Documentation",
               style: "Stylistic",
