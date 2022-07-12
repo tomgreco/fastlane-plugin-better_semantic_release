@@ -112,7 +112,7 @@ module Fastlane
         end
 
         # Default last version
-        version = beginning[:version] || '0.0.0'
+        version = beginning[:version] || params[:version_start]
         # If the tag is not found we are taking HEAD as reference
         hash = beginning[:hash] || 'HEAD'
 
@@ -206,7 +206,7 @@ module Fastlane
         next_major = 0
         next_minor = 0
         next_patch = 0
-        last_incompatible_codepush_version = '0.0.0'
+        last_incompatible_codepush_version = params[:version_start]
 
         if hash_lines.to_i > 1
           UI.error("#{git_command} resulted to more than 1 hash")
@@ -328,6 +328,13 @@ module Fastlane
             key: :tag_version_match,
             description: "To parse version number from tag name",
             default_value: '\d+\.\d+\.\d+'
+          ),
+          FastlaneCore::ConfigItem.new(
+            key: :version_start,
+            description: "Number to start versioning from, useful if TestFlight has a bad version",
+            default_value: '0.0.0',
+            type: Number,
+            optional: true
           ),
           FastlaneCore::ConfigItem.new(
             key: :ignore_scopes,
