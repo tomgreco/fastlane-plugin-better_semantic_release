@@ -333,7 +333,7 @@ module Fastlane
             key: :version_start,
             description: "Number to start versioning from, useful if TestFlight has a bad version",
             default_value: '0.0.0',
-            type: Number,
+            type: String,
             optional: true
           ),
           FastlaneCore::ConfigItem.new(
