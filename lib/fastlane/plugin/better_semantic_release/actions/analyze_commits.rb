@@ -135,7 +135,10 @@ module Fastlane
         format_pattern = lane_context[SharedValues::CONVENTIONAL_CHANGELOG_ACTION_FORMAT_PATTERN]
         splitted.each do |squashed_commit|
           commits = squashed_commit.split("*")
-          commits.drop(1).each do |line|
+          # This works for Bitbucket
+          #commits.drop(1).each do |line|
+          # This works for Gitlab
+          commits.each do |line|
             parts = line.split(":")
             if parts.length > 1
               # conventional commits are in format
