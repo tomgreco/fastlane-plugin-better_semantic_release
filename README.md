@@ -87,7 +87,7 @@ To run the test suite (contained in `./spec`), call `bundle exec rake`
 
 # Publishing Update
 
-Increment version number and run: 
+Increment version number, commit changes, run:
 
 `bundle install && rake install && rake release`
 

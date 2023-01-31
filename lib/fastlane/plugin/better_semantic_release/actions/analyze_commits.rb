@@ -144,7 +144,7 @@ module Fastlane
               # conventional commits are in format
               # type: subject (fix: app crash - for example)
               commit = Helper::BetterSemanticReleaseHelper.parse_commit(
-                commit_subject: line,
+                commit_subject: line.strip,
                 commit_body: parts[1].strip,
                 releases: releases,
                 pattern: format_pattern
