@@ -85,6 +85,13 @@ And you can access these like this:
 
 To run the test suite (contained in `./spec`), call `bundle exec rake`
 
+# Publishing Update
+
+Increment version number and run: 
+
+`bundle install && rake install && rake release`
+
+
 ## Questions
 
 If you need anything ping us on [twitter](http://bit.ly/t-xotahal).
