@@ -21,7 +21,15 @@ module Fastlane
       end
 
       def self.parse_commit(params)
-        commit_subject = params[:commit_subject].strip
+        #UI.message "-------------"
+        #begin
+        #  UI.message "body: " + params[:commit_body]
+        #rescue
+        #  UI.message "ERROR_HERE: "
+        #  UI.message params
+        #end
+        #UI.message "subject: " + params[:commit_subject].delete("\n")
+        commit_subject = params[:commit_subject].delete("\n")
         commit_body = params[:commit_body]
         releases = params[:releases]
         codepush_friendly = params[:codepush_friendly]
@@ -58,7 +66,8 @@ module Fastlane
           unless commit_body.nil?
             breaking_change_matched = commit_body.match(breaking_change_pattern)
             codepush_matched = commit_body.match(codepush_pattern)
-
+            
+            #UI.message commit_body
             unless breaking_change_matched.nil?
               result[:is_breaking_change] = true
               result[:breaking_change] = breaking_change_matched[1]
@@ -68,6 +77,9 @@ module Fastlane
             end
           end
         end
+
+
+        #UI.message result
 
         result
       end

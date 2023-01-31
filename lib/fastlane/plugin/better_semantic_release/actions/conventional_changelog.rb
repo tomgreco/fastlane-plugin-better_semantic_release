@@ -184,26 +184,60 @@ module Fastlane
           commits.each do |line|
             splitted = line.split("|")
 
-            commit = Helper::BetterSemanticReleaseHelper.parse_commit(
-              commit_subject: splitted[0],
-              commit_body: splitted[1],
-              pattern: format_pattern
-            )
+            # This is a regular commit
+            # every `line` in commits array has it's own hash and other info
+            if splitted.length() > 1
+              commit = Helper::BetterSemanticReleaseHelper.parse_commit(
+                commit_subject: splitted[0],
+                commit_body: splitted[1],
+                pattern: format_pattern
+              )
+  
+              unless commit[:scope].nil?
+                # if this commit has a scope, then we need to inspect to see if that is one of the scopes we're trying to exclude
+                scope = commit[:scope]
+                scopes_to_ignore = params[:ignore_scopes]
+                # if it is, we'll skip this commit when bumping versions
+                next if scopes_to_ignore.include?(scope) #=> true
+              end
+  
+              commit[:hash] = splitted[2]
+              commit[:short_hash] = splitted[3]
+              commit[:author_name] = splitted[4]
+              commit[:commit_date] = splitted[5]
+              parsed.push(commit)
 
-            unless commit[:scope].nil?
-              # if this commit has a scope, then we need to inspect to see if that is one of the scopes we're trying to exclude
-              scope = commit[:scope]
-              scopes_to_ignore = params[:ignore_scopes]
-              # if it is, we'll skip this commit when bumping versions
-              next if scopes_to_ignore.include?(scope) #=> true
+            # This is a rebased-squash commit
+            # Every line is one commit message but hash and other details
+            # are on the very last `line` in the commits array. 
+            elsif
+              # Skip any empty space
+              unless line.to_s.strip.empty?
+                # Split last commit since that's the squashed commit that has the extra details on it for all these commits
+                splitted = commits[commits.length() -1]
+    
+                commit = Helper::BetterSemanticReleaseHelper.parse_commit(
+                  commit_subject: line.to_s.strip,
+                  commit_body: "",
+                  pattern: format_pattern
+                )
+    
+                unless commit[:scope].nil?
+                  # if this commit has a scope, then we need to inspect to see if that is one of the scopes we're trying to exclude
+                  scope = commit[:scope]
+                  scopes_to_ignore = params[:ignore_scopes]
+                  # if it is, we'll skip this commit when bumping versions
+                  next if scopes_to_ignore.include?(scope) #=> true
+                end
+    
+                commit[:hash] = splitted[2]
+                commit[:short_hash] = splitted[3]
+                commit[:author_name] = splitted[4]
+                commit[:commit_date] = splitted[5]
+    
+                parsed.push(commit)
+              end
             end
-
-            commit[:hash] = splitted[2]
-            commit[:short_hash] = splitted[3]
-            commit[:author_name] = splitted[4]
-            commit[:commit_date] = splitted[5]
-
-            parsed.push(commit)
           end
         end
 
