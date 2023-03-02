@@ -1,405 +1,403 @@
-require 'spec_helper'
+require 'fastlane/action'
+require_relative '../helper/better_semantic_release_helper'
 
-describe Fastlane::Actions::AnalyzeCommitsAction do
-  describe "Analyze Commits" do
-    before do
+module Fastlane
+  module Actions
+    module SharedValues
+      RELEASE_ANALYZED = :RELEASE_ANALYZED
+      RELEASE_IS_NEXT_VERSION_HIGHER = :RELEASE_IS_NEXT_VERSION_HIGHER
+      RELEASE_IS_NEXT_VERSION_COMPATIBLE_WITH_CODEPUSH = :RELEASE_IS_NEXT_VERSION_COMPATIBLE_WITH_CODEPUSH
+      RELEASE_LAST_TAG_HASH = :RELEASE_LAST_TAG_HASH
+      RELEASE_LAST_VERSION = :RELEASE_LAST_VERSION
+      RELEASE_NEXT_MAJOR_VERSION = :RELEASE_NEXT_MAJOR_VERSION
+      RELEASE_NEXT_MINOR_VERSION = :RELEASE_NEXT_MINOR_VERSION
+      RELEASE_NEXT_PATCH_VERSION = :RELEASE_NEXT_PATCH_VERSION
+      RELEASE_NEXT_VERSION = :RELEASE_NEXT_VERSION
+      RELEASE_LAST_INCOMPATIBLE_CODEPUSH_VERSION = :RELEASE_LAST_INCOMPATIBLE_CODEPUSH_VERSION
+      CONVENTIONAL_CHANGELOG_ACTION_FORMAT_PATTERN = :CONVENTIONAL_CHANGELOG_ACTION_FORMAT_PATTERN
     end
 
-    def test_analyze_commits(commits)
-      # for simplicity, these two actions are grouped together because they need to be run for every test,
-      # but require different commits to be passed each time. So we can't use the "before :each" for this
-      allow(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_last_tag).and_return('v1.0.8-1-g71ce4d8')
-      allow(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_commits_from_hash).and_return(commits)
-    end
-
-    def execute_lane_test(params)
-      Fastlane::FastFile.new.parse("lane :test do analyze_commits( #{params} ) end").runner.execute(:test)
-    end
-
-    it "should increment fix and return true" do
-      commits = [
-        "docs: ...|",
-        "fix: ...|"
-      ]
-      test_analyze_commits(commits)
-
-      expect(execute_lane_test(match: 'v*')).to eq(true)
-      expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.0.9")
-    end
-
-    it "should increment feat and fix and return true" do
-      commits = [
-        "docs: ...|",
-        "feat: ...|",
-        "fix: ...|"
-      ]
-      test_analyze_commits(commits)
-
-      expect(execute_lane_test(match: 'v*')).to eq(true)
-      expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.1.1")
-    end
-
-    it "should increment major change and return true" do
-      commits = [
-        "docs: ...|",
-        "feat: ...|",
-        "fix: ...|BREAKING CHANGE: Test"
-      ]
-      test_analyze_commits(commits)
-
-      expect(execute_lane_test(match: 'v*')).to eq(true)
-      expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("2.0.0")
-    end
-
-    it "should increment major change and return true" do
-      commits = [
-        "docs: ...|",
-        "feat: ...|",
-        "fix!: ...|BREAKING CHANGE: Bump major version"
-      ]
-      test_analyze_commits(commits)
-
-      expect(execute_lane_test(match: 'v*')).to eq(true)
-      expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("2.0.0")
-    end
-
-    describe "scopes" do
-      commits = [
-        "fix(scope): ...|",
-        "feat(ios): ...|",
-        "fix(ios): ...|",
-        "feat(android): ...|",
-        "fix(android): ...|"
-      ]
-
-      describe "parsing of scopes" do
-        it "should correctly parse and output scopes" do
-          test_analyze_commits(commits)
-
-          expect(execute_lane_test(match: 'v*')).to eq(true)
-          expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.2.1")
-        end
+    class AnalyzeCommitsAction < Action
+      def self.get_last_tag(params)
+        # Try to find the tag
+        command = "git describe --tags --match=#{params[:match]}"
+        Actions.sh(command, log: params[:debug])
+      rescue
+        UI.message("Tag was not found for match pattern - #{params[:match]}")
+        ''
       end
 
-      describe "filtering by scopes" do
-        it "should accommodate an empty ignore_scopes array" do
-          test_analyze_commits(commits)
-
-          expect(execute_lane_test(match: 'v*', ignore_scopes: [])).to eq(true)
-          expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.2.1")
-        end
-
-        it "should skip a single scopes if it has been added to ignore_scopes" do
-          test_analyze_commits(commits)
-
-          expect(execute_lane_test(match: 'v*', ignore_scopes: ['android'])).to eq(true)
-          expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.1.1")
-        end
-
-        it "should skip multiple scopes if they have been added to ignore_scopes" do
-          test_analyze_commits(commits)
-
-          expect(execute_lane_test(match: 'v*', ignore_scopes: ['android', 'ios'])).to eq(true)
-          expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.0.9")
-        end
-
-        it "should not pass analysis checks if all commits are caught by excluded scopes" do
-          commits = [
-            "fix(ios): ...|"
-          ]
-          test_analyze_commits(commits)
-
-          expect(execute_lane_test(match: 'v*', ignore_scopes: ['ios'])).to eq(false)
-        end
+      def self.get_last_tag_hash(params)
+        # Convert ios/production/1.15.3-2-ga8b1c030 to ios/production/1.15.3 so we can get hash of it
+        formatted_tag = params[:tag_name].slice(0..(params[:tag_name].index('-') - 1))
+        command = "git rev-list -n 1 refs/tags/#{formatted_tag}"
+        Actions.sh(command, log: params[:debug]).chomp
       end
-    end
 
-    it "should return false since there is no change that would increase version" do
-      commits = [
-        "docs: ...|",
-        "chore: ...|",
-        "refactor: ...|"
-      ]
-      test_analyze_commits(commits)
+      def self.get_commits_from_hash(params)
+        commits = Helper::BetterSemanticReleaseHelper.git_log(
+          pretty: '%s|%b|>',
+          start: params[:hash],
+          debug: params[:debug]
+        )
+        commits.split("|>")
+      end
 
-      expect(execute_lane_test(match: 'v*')).to eq(false)
-      expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.0.8")
-    end
+      def self.get_beginning_of_next_sprint(params)
+        tag = get_last_tag(match: params[:match], debug: params[:debug])
 
-    it "should return false since there is no change that would increase version" do
-      commits = [
-        "Merge ...|",
-        "Custom ...|"
-      ]
-      test_analyze_commits(commits)
+        # if tag doesn't exist it get's first commit or fallback tag (v*.*.*)
+        if tag.empty?
+          UI.message("It couldn't match tag for #{params[:match]}. Check if first commit can be taken as a beginning of next release")
+          # If there is no tag found we taking the first commit of current branch
+           # command to get first commit
+          git_command = 'git rev-list --max-parents=0 HEAD'
+          hash_lines = Actions.sh("#{git_command} | wc -l", log: params[:debug]).chomp
 
-      expect(execute_lane_test(match: 'v*')).to eq(false)
-      expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.0.8")
-    end
+          if hash_lines.to_i == 1
+            UI.message("First commit of the branch is taken as a begining of next release")
+            return {
+              # here we know this command will return 1 line
+              hash: Actions.sh(git_command, log: params[:debug]).chomp
+            }
+          end
 
-    it "should deal with multiline comments" do
-      commits = [
-        "fix: add alpha deploy (#10)|* chore: test alpha build with CircleCI
+          # neighter matched tag and first hash could be used - as fallback we try vX.Y.Z
+          UI.message("It couldn't match tag for #{params[:match]} and couldn't use first commit. Check if tag vX.Y.Z can be taken as a begining of next release")
+          tag = get_last_tag(match: "v*", debug: params[:debug])
 
-        * chore: skip code check for now
+          # even fallback tag doesn't work
+          if tag.empty?
+            return false
+          end
+        end
 
-        * chore: ignore gems dirs
-        ",
-        "chore: add alpha deploy triggered by alpha branch|",
-        "fix: fix navigation after user logs in|"
-      ]
-      test_analyze_commits(commits)
+        # Tag's format is v2.3.4-5-g7685948
+        # See git describe man page for more info
+        version = tag.split('/')[2]
 
-      expect(execute_lane_test(match: 'v*')).to eq(true)
-      expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.0.10")
-    end
+        if version.nil?
+          UI.user_error!("Error while parsing version from tag #{tag}")
+        end
 
-    describe "tags" do
-      it "should properly strip off git describe suffix" do
-        commits = [
-          "docs: ...|",
-          "fix: ...|"
+        # Get a hash of last version tag
+        hash = get_last_tag_hash(
+          tag_name: tag,
+          debug: params[:debug]
+        )
+
+        UI.message("Found a tag #{tag} associated with version #{version}")
+
+        return {
+          hash: hash,
+          version: version
+        }
+      end
+
+      def self.is_releasable(params)
+        # Hash of the commit where is the last version
+        beginning = get_beginning_of_next_sprint(params)
+
+        unless beginning
+          UI.error('It could not find a begining of this sprint. How to fix this:')
+          UI.error('-- ensure there is only one commit with --max-parents=0 (this command should return one line: "git rev-list --max-parents=0 HEAD")')
+          UI.error('-- tell us explicitely where the release starts by adding tag like this: vX.Y.Z (where X.Y.Z is version from which it starts computing next version number)')
+          return false
+        end
+
+        # Default last version
+        version = beginning[:version] || params[:version_start]
+        # If the tag is not found we are taking HEAD as reference
+        hash = beginning[:hash] || 'HEAD'
+
+        # converts last version string to the int numbers
+        next_major = (version.split('.')[0] || 0).to_i
+        next_minor = (version.split('.')[1] || 0).to_i
+        next_patch = (version.split('.')[2] || 0).to_i
+
+        is_next_version_compatible_with_codepush = true
+
+        # Get commits log between last version and head
+        splitted = get_commits_from_hash(
+          hash: hash,
+          debug: params[:debug]
+        )
+
+        UI.message hash
+
+        UI.message("Found #{splitted.length} commits since last release")
+        releases = params[:releases]
+
+        format_pattern = lane_context[SharedValues::CONVENTIONAL_CHANGELOG_ACTION_FORMAT_PATTERN]
+        splitted.each do |squashed_commit|
+          commits = squashed_commit.split("*")
+          # This works for Bitbucket
+          #commits.drop(1).each do |line|
+          # This works for Gitlab
+          commits.each do |line|
+            parts = line.split(":")
+            if parts.length > 1
+              # conventional commits are in format
+              # type: subject (fix: app crash - for example)
+              commit = Helper::BetterSemanticReleaseHelper.parse_commit(
+                commit_subject: line.strip,
+                commit_body: parts[1].strip,
+                releases: releases,
+                pattern: format_pattern
+              )
+
+              unless commit[:scope].nil?
+                # if this commit has a scope, then we need to inspect to see if that is one of the scopes we're trying to exclude
+                scope = commit[:scope]
+                scopes_to_ignore = params[:ignore_scopes]
+                # if it is, we'll skip this commit when bumping versions
+                next if scopes_to_ignore.include?(scope) #=> true
+              end
+
+              if commit[:release] == "major" || commit[:is_breaking_change]
+                next_major += 1
+                next_minor = 0
+                next_patch = 0
+              elsif commit[:release] == "minor"
+                next_minor += 1
+                next_patch = 0
+              elsif commit[:release] == "patch"
+                next_patch += 1
+              end
+
+              unless commit[:is_codepush_friendly]
+                is_next_version_compatible_with_codepush = false
+              end
+
+              next_version = "#{next_major}.#{next_minor}.#{next_patch}"
+              UI.message("#{next_version}") if params[:show_version_path]
+            end
+          end
+        end
+
+        next_version = "#{next_major}.#{next_minor}.#{next_patch}"
+
+        is_next_version_releasable = Helper::BetterSemanticReleaseHelper.semver_gt(next_version, version)
+
+        Actions.lane_context[SharedValues::RELEASE_ANALYZED] = true
+        Actions.lane_context[SharedValues::RELEASE_IS_NEXT_VERSION_HIGHER] = is_next_version_releasable
+        Actions.lane_context[SharedValues::RELEASE_IS_NEXT_VERSION_COMPATIBLE_WITH_CODEPUSH] = is_next_version_compatible_with_codepush
+        # Last release analysis
+        Actions.lane_context[SharedValues::RELEASE_LAST_TAG_HASH] = hash
+        Actions.lane_context[SharedValues::RELEASE_LAST_VERSION] = version
+        # Next release analysis
+        Actions.lane_context[SharedValues::RELEASE_NEXT_MAJOR_VERSION] = next_major
+        Actions.lane_context[SharedValues::RELEASE_NEXT_MINOR_VERSION] = next_minor
+        Actions.lane_context[SharedValues::RELEASE_NEXT_PATCH_VERSION] = next_patch
+        Actions.lane_context[SharedValues::RELEASE_NEXT_VERSION] = next_version
+
+        success_message = "Next version (#{next_version}) is higher than last version (#{version}). This version should be released."
+        UI.success(success_message) if is_next_version_releasable
+
+        is_next_version_releasable
+      end
+
+      def self.is_codepush_friendly(params)
+        git_command = "git rev-list --max-parents=#{params[:start_hash]} HEAD"
+        # Begining of the branch is taken for codepush analysis
+        hash_lines = Actions.sh("#{git_command} | wc -l", log: params[:debug]).chomp
+        hash = Actions.sh(git_command, log: params[:debug]).chomp
+        next_major = 0
+        next_minor = 0
+        next_patch = 0
+        last_incompatible_codepush_version = params[:version_start]
+
+        if hash_lines.to_i > 1
+          UI.error("#{git_command} resulted to more than 1 hash")
+          UI.error('This usualy happens when you pull only part of a git history. Check out how you pull the repo! "git fetch" should be enough.')
+          Actions.sh(git_command, log: true).chomp
+          return false
+        end
+
+        # Get commits log between last version and head
+        splitted = get_commits_from_hash(
+          hash: hash,
+          debug: params[:debug]
+        )
+        releases = params[:releases]
+        codepush_friendly = params[:codepush_friendly]
+
+        format_pattern = lane_context[SharedValues::CONVENTIONAL_CHANGELOG_ACTION_FORMAT_PATTERN]
+        splitted.each do |line|
+          parts = line.split(':')
+          if parts.length > 1
+            # conventional commits are in format
+            # type: subject (fix: app crash - for example)
+            commit = Helper::BetterSemanticReleaseHelper.parse_commit(
+              commit_subject: line,
+              commit_body: parts[1].strip,
+              releases: releases,
+              pattern: format_pattern,
+              codepush_friendly: codepush_friendly
+            )
+
+            #UI.message commit
+
+            if commit[:release] == "major" || commit[:is_breaking_change]
+              next_major += 1
+              next_minor = 0
+              next_patch = 0
+            elsif commit[:release] == "minor"
+              next_minor += 1
+              next_patch = 0
+            elsif commit[:release] == "patch"
+              next_patch += 1
+            end
+
+            unless commit[:is_codepush_friendly]
+              last_incompatible_codepush_version = "#{next_major}.#{next_minor}.#{next_patch}"
+            end
+          end
+        end
+
+        Actions.lane_context[SharedValues::RELEASE_LAST_INCOMPATIBLE_CODEPUSH_VERSION] = last_incompatible_codepush_version
+      end
+
+      def self.run(params)
+        is_next_version_releasable = is_releasable(params)
+        is_codepush_friendly(params)
+
+        is_next_version_releasable
+      end
+
+      #####################################################
+      # @!group Documentation
+      #####################################################
+
+      def self.description
+        "Finds a tag of last release and determinates version of next release"
+      end
+
+      def self.details
+        "This action will find a last release tag and analyze all commits since the tag. It uses conventional commits. Every time when commit is marked as fix or feat it will increase patch or minor number (you can setup this default behaviour). After all it will suggest if the version should be released or not."
+      end
+
+      def self.available_options
+        # Define all options your action supports.
+
+        # Below a few examples
+        [
+          FastlaneCore::ConfigItem.new(
+            key: :match,
+            description: "Match parameter of git describe. See man page of git describe for more info",
+            verify_block: proc do |value|
+              UI.user_error!("No match for analyze_commits action given, pass using `match: 'expr'`") unless value && !value.empty?
+            end
+          ),
+          FastlaneCore::ConfigItem.new(
+            key: :commit_format,
+            description: "The commit format to apply. Presets are 'default' or 'angular', or you can provide your own Regexp. Note: the supplied regex _must_ have 4 capture groups, in order: type, scope, has_exclamation_mark, and subject",
+            default_value: "default",
+            is_string: false,
+            verify_block: proc do |value|
+              case value
+              when String
+                unless Helper::BetterSemanticReleaseHelper.format_patterns.key?(value)
+                  UI.user_error!("Invalid format preset: #{value}")
+                end
+
+                pattern = Helper::BetterSemanticReleaseHelper.format_patterns[value]
+              when Regexp
+                pattern = value
+              else
+                UI.user_error!("Invalid option type: #{value.inspect}")
+              end
+              Actions.lane_context[SharedValues::CONVENTIONAL_CHANGELOG_ACTION_FORMAT_PATTERN] = pattern
+            end
+          ),
+          FastlaneCore::ConfigItem.new(
+            key: :releases,
+            description: "Map types of commit to release (major, minor, patch)",
+            default_value: { build: "patch", chore: "patch", ci: "patch", fix: "patch", feat: "minor", perf: "patch", refactor: "patch", style: "patch" },
+            type: Hash
+          ),
+          FastlaneCore::ConfigItem.new(
+            key: :codepush_friendly,
+            description: "These types are consider as codepush friendly automatically",
+            default_value: ["build", "chore", "ci", "docs", "fix", "feat", "perf", "refactor", "style", "test"],
+            type: Array,
+            optional: true
+          ),
+          FastlaneCore::ConfigItem.new(
+            key: :tag_version_match,
+            description: "To parse version number from tag name",
+            default_value: '\d+\.\d+\.\d+'
+          ),
+          FastlaneCore::ConfigItem.new(
+            key: :version_start,
+            description: "Number to start versioning from, useful if TestFlight has a bad version",
+            default_value: '0.0.0',
+            type: String,
+            optional: true
+          ),
+          FastlaneCore::ConfigItem.new(
+            key: :ignore_scopes,
+            description: "To ignore certain scopes when calculating releases",
+            default_value: [],
+            type: Array,
+            optional: true
+          ),
+          FastlaneCore::ConfigItem.new(
+            key: :show_version_path,
+            description: "True if you want to print out the version calculated for each commit",
+            default_value: true,
+            type: Boolean,
+            optional: true
+          ),
+          FastlaneCore::ConfigItem.new(
+            key: :debug,
+            description: "True if you want to log out a debug info",
+            default_value: false,
+            type: Boolean,
+            optional: true
+          ),
+          FastlaneCore::ConfigItem.new(
+            key: :start_hash,
+            description: "Hash to start from when calculating versions",
+            default_value: "HEAD",
+            type: String,
+            optional: true
+          )
         ]
-        allow(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_last_tag).and_return('v1.0.8-1-g71ce4d8')
-        allow(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_commits_from_hash).and_return(commits)
-
-        expect(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_last_tag_hash).with(tag_name: 'v1.0.8', debug: false)
-        expect(execute_lane_test(match: 'v*')).to eq(true)
-        expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.0.9")
       end
 
-      it "should allow for user-defined hyphens" do
-        commits = [
-          "docs: ...|",
-          "fix: ...|"
+      def self.output
+        # Define the shared values you are going to provide
+        # Example
+        [
+          ['RELEASE_ANALYZED', 'True if commits were analyzed.'],
+          ['RELEASE_IS_NEXT_VERSION_HIGHER', 'True if next version is higher then last version'],
+          ['RELEASE_IS_NEXT_VERSION_COMPATIBLE_WITH_CODEPUSH', 'True if next version is compatible with codepush'],
+          ['RELEASE_LAST_TAG_HASH', 'Hash of commit that is tagged as a last version'],
+          ['RELEASE_LAST_VERSION', 'Last version number - parsed from last tag.'],
+          ['RELEASE_NEXT_MAJOR_VERSION', 'Major number of the next version'],
+          ['RELEASE_NEXT_MINOR_VERSION', 'Minor number of the next version'],
+          ['RELEASE_NEXT_PATCH_VERSION', 'Patch number of the next version'],
+          ['RELEASE_NEXT_VERSION', 'Next version string in format (major.minor.patch)'],
+          ['RELEASE_LAST_INCOMPATIBLE_CODEPUSH_VERSION', 'Last commit without codepush'],
+          ['CONVENTIONAL_CHANGELOG_ACTION_FORMAT_PATTERN', 'The format pattern Regexp used to match commits (mainly for internal use)']
         ]
-        allow(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_last_tag).and_return('ios-v1.0.8-beta.1-1-g71ce4d8')
-        allow(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_commits_from_hash).and_return(commits)
-
-        expect(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_last_tag_hash).with(tag_name: 'ios-v1.0.8-beta.1', debug: false)
-        expect(execute_lane_test(match: 'v*')).to eq(true)
-        expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.0.9")
-      end
-    end
-
-    it "should provide codepush last version" do
-      commits = [
-        "fix: ...|codepush: ok",
-        "fix: ...|codepush: ok",
-        "fix: ...|codepush: ok",
-        "fix: ...|codepush: ok",
-        "fix: ...|codepush: ok",
-        "fix: ...",
-        "fix: ...|codepush: ok",
-        "docs: ...|codepush: ok",
-        "feat: ...|codepush: ok",
-        "fix: ...|codepush: ok"
-      ]
-      allow(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_last_tag).and_return('v0.0.0-1-g71ce4d8')
-      allow(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_commits_from_hash).and_return(commits)
-
-      expect(execute_lane_test(match: 'v*')).to eq(true)
-      expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("0.1.1")
-      expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_LAST_INCOMPATIBLE_CODEPUSH_VERSION]).to eq("0.0.6")
-    end
-
-    it "should accept only codepush: ok as codepush friendly commit" do
-      commits = [
-        "fix: ...|codepush: ok",
-        "fix: ...|codepush: ok",
-        "fix: ...|codepush: ok",
-        "fix: ...|codepush",
-        "fix: ...|codepush: ok",
-        "docs: ...|codepush: ok",
-        "feat: ...|codepush: ok",
-        "fix: ...|codepush: ok"
-      ]
-      allow(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_last_tag).and_return('v0.0.0-1-g71ce4d8')
-      allow(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_commits_from_hash).and_return(commits)
-
-      expect(execute_lane_test(match: 'v*')).to eq(true)
-      expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("0.1.1")
-      expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_LAST_INCOMPATIBLE_CODEPUSH_VERSION]).to eq("0.0.4")
-    end
-
-    it "should docs, test, etc commits are codepush friendly automatically" do
-      commits = [
-        "fix: ...|codepush: ok",
-        "fix: ...|codepush: ok",
-        "fix: ...|codepush",
-        "test: ...",
-        "refactor: ...|codepush: ok",
-        "feat: ...|codepush: ok",
-        "perf: ...|codepush: ok",
-        "chore: ...",
-        "docs: ...",
-        "feat: ...|codepush: ok",
-        "fix: ...|codepush: ok"
-      ]
-      allow(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_last_tag).and_return('v0.0.0-1-g71ce4d8')
-      allow(Fastlane::Actions::AnalyzeCommitsAction).to receive(:get_commits_from_hash).and_return(commits)
-
-      expect(execute_lane_test(match: 'v*')).to eq(true)
-      expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("0.2.1")
-      expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_LAST_INCOMPATIBLE_CODEPUSH_VERSION]).to eq("0.0.3")
-    end
-
-    describe "commit_format" do
-      describe "default" do
-        it "should allow for certain types" do
-          commits = [
-            "docs: ...|",
-            "fix: ...|",
-            "feat: ...|",
-            "chore: ...|",
-            "style: ...|",
-            "refactor: ...|",
-            "perf: ...|",
-            "test: ...|"
-          ]
-          test_analyze_commits(commits)
-
-          is_releasable = execute_lane_test(
-            match: 'v*',
-            releases: {
-              docs: "minor",
-              fix: "minor",
-              feat: "minor",
-              chore: "minor",
-              style: "minor",
-              refactor: "minor",
-              perf: "minor",
-              test: "minor"
-            }
-          )
-          expect(is_releasable).to eq(true)
-          expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.8.0")
-        end
-
-        it "should not allow for custom types" do
-          commits = [
-            "foo: ...|",
-            "bar: ...|",
-            "baz: ...|"
-          ]
-          test_analyze_commits(commits)
-
-          is_releasable = execute_lane_test(
-            match: 'v*',
-            releases: {
-              foo: "minor",
-              bar: "minor",
-              baz: "minor"
-            }
-          )
-          expect(is_releasable).to eq(false)
-          expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.0.8")
-        end
       end
 
-      describe "angular" do
-        it "should allow for default types" do
-          commits = [
-            "docs: ...|",
-            "fix: ...|",
-            "feat: ...|",
-            "chore: ...|",
-            "style: ...|",
-            "refactor: ...|",
-            "perf: ...|",
-            "test: ...|"
-          ]
-          test_analyze_commits(commits)
-
-          is_releasable = execute_lane_test(
-            match: 'v*',
-            commit_format: 'angular',
-            releases: {
-              docs: "minor",
-              fix: "minor",
-              feat: "minor",
-              chore: "minor",
-              style: "minor",
-              refactor: "minor",
-              perf: "minor",
-              test: "minor"
-            }
-          )
-          expect(is_releasable).to eq(true)
-          expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.8.0")
-        end
-
-        it "should allow for custom types" do
-          commits = [
-            "foo: ...|",
-            "bar: ...|",
-            "baz: ...|"
-          ]
-          test_analyze_commits(commits)
-
-          is_releasable = execute_lane_test(
-            match: 'v*',
-            commit_format: 'angular',
-            releases: {
-              foo: "minor",
-              bar: "minor",
-              baz: "minor"
-            }
-          )
-          expect(is_releasable).to eq(true)
-          expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("1.3.0")
-        end
+      def self.return_value
+        # If your method provides a return value, you can describe here what it does
+        "Returns true if the next version is higher then the last version"
       end
 
-      describe "custom" do
-        format_pattern = /^prefix-(foo|bar|baz)(?:\.(.*))?(): (.*)/
-        commits = [
-          "prefix-foo.ios: ...|",
-          "prefix-foo.android: ...|",
-          "prefix-bar.ios: ...|",
-          "prefix-bar.android: ...|",
-          "prefix-baz.ios: ...|",
-          "prefix-baz.android: ...|",
-          "prefix-qux.ios: ...|",
-          "prefix-qux.android: ...|"
-        ]
-
-        it "should allow for arbetrary formatting" do
-          test_analyze_commits(commits)
-
-          is_releasable = execute_lane_test(
-            match: 'v*',
-            commit_format: format_pattern,
-            releases: {
-              foo: "major",
-              bar: "minor",
-              baz: "patch"
-            }
-          )
-          expect(is_releasable).to eq(true)
-          expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("3.2.2")
-        end
-
-        it "should allow for arbetrary formatting with scope" do
-          test_analyze_commits(commits)
-
-          is_releasable = execute_lane_test(
-            match: 'v*',
-            commit_format: format_pattern,
-            releases: {
-              foo: "major",
-              bar: "minor",
-              baz: "patch"
-            },
-            ignore_scopes: ['android']
-          )
-          expect(is_releasable).to eq(true)
-          expect(Fastlane::Actions.lane_context[Fastlane::Actions::SharedValues::RELEASE_NEXT_VERSION]).to eq("2.1.1")
-        end
+      def self.authors
+        # So no one will ever forget your contribution to fastlane :) You are awesome btw!
+        ["xotahal"]
       end
-    end
 
-    after do
+      def self.is_supported?(platform)
+        # you can do things like
+        true
+      end
     end
   end
 end
