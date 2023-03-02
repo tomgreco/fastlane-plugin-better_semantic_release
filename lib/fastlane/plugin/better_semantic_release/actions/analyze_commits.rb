@@ -28,16 +28,10 @@ module Fastlane
       end
 
       def self.get_last_tag_hash(params)
-        #command = "git rev-list -n 1 refs/tags/#{params[:tag_name]}"
-        #Actions.sh(command, log: params[:debug]).chomp
-
-        command = "git log -2 --pretty=format:'%H' #{params[:tag_name]}"
-        command_output = Actions.sh(command, log: false).chomp
-        hashes = command_output.split("\n")
-        if hashes.length > 1
-          return hashes[1]
-        end
-        return nil
+        # Convert ios/production/1.15.3-2-ga8b1c030 to ios/production/1.15.3 so we can get hash of it
+        formatted_tag = params[:tag_name].slice(0..(params[:tag_name].index('-') - 1))
+        command = "git rev-list -n 1 refs/tags/#{formatted_tag}"
+        Actions.sh(command, log: params[:debug]).chomp
       end
 
       def self.get_commits_from_hash(params)
@@ -128,6 +122,8 @@ module Fastlane
           hash: hash,
           debug: params[:debug]
         )
+
+        UI.message hash
 
         UI.message("Found #{splitted.length} commits since last release")
         releases = params[:releases]
