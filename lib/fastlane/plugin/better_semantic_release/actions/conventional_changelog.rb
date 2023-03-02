@@ -6,6 +6,7 @@ module Fastlane
     module SharedValues
     end
 
+    # TODO Add version_override param 
     class ConventionalChangelogAction < Action
       def self.get_commits_from_hash(params)
         commits = Helper::BetterSemanticReleaseHelper.git_log(
@@ -28,7 +29,7 @@ module Fastlane
         end
 
         last_tag_hash = lane_context[SharedValues::RELEASE_LAST_TAG_HASH]
-        version = lane_context[SharedValues::RELEASE_NEXT_VERSION]
+        version = params[:version_override] ? params[:version_override] : lane_context[SharedValues::RELEASE_NEXT_VERSION]
 
         # Get commits log between last version and head
         commits = get_commits_from_hash(
@@ -336,6 +337,11 @@ module Fastlane
             description: "True if you want to log out a debug info",
             default_value: false,
             type: Boolean,
+            optional: true
+          ),
+          FastlaneCore::ConfigItem.new(
+            key: :version_override,
+            description: "Allow overriding version number rather than letting it be calculated here. Useful for prod build matching beta version",
             optional: true
           )
         ]
