@@ -29,7 +29,13 @@ module Fastlane
 
       def self.get_last_tag_hash(params)
         # Convert ios/production/1.15.3-2-ga8b1c030 to ios/production/1.15.3 so we can get hash of it
-        formatted_tag = params[:tag_name].slice(0..(params[:tag_name].index('-') - 1))
+        UI.message "get_last_tag_hash #{params[:tag_name]}"
+        dashIndex = params[:tag_name].index('-')
+        if dashIndex
+          formatted_tag = params[:tag_name].slice(0..(params[:tag_name].index('-') - 1))
+        elsif
+          formatted_tag = params[:tag_name]
+        end 
         command = "git rev-list -n 1 refs/tags/#{formatted_tag}"
         Actions.sh(command, log: params[:debug]).chomp
       end

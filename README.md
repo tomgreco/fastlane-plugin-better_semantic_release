@@ -91,6 +91,9 @@ Increment version number, commit changes, run:
 
 `bundle install && rake install && rake release`
 
+Then in client app using plugin 
+`bundle update fastlane-plugin-better_semantic_release`
+
 
 ## Questions
 
