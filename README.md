@@ -87,7 +87,7 @@ To run the test suite (contained in `./spec`), call `bundle exec rake`
 
 # Publishing Update
 
-Increment version number, commit changes, run:
+Increment version number in ./lib/fastlane/plugin/better_semantic_release/version.rb, commit changes, run:
 
 `bundle install && rake install && rake release`
 
