@@ -80,7 +80,8 @@ module Fastlane
 
         # Tag's format is v2.3.4-5-g7685948
         # See git describe man page for more info
-        version = tag.split('/')[2]
+        slach_occurrences = tag.count("/")
+        version = tag.split('/')[slach_occurrences]
 
         if version.nil?
           UI.user_error!("Error while parsing version from tag #{tag}")

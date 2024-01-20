@@ -93,12 +93,3 @@ Increment version number, commit changes, run:
 
 Then in client app using plugin 
 `bundle update fastlane-plugin-better_semantic_release`
-
-
-## Questions
-
-If you need anything ping us on [twitter](http://bit.ly/t-xotahal).
-
-| Jiri Otahal                                                                                                                            |
-| -------------------------------------------------------------------------------------------------------------------------------------- |
-| [<img src="https://avatars3.githubusercontent.com/u/3531955?v=4" width="100px;" style="border-radius:50px"/>](http://bit.ly/t-xotahal) |
