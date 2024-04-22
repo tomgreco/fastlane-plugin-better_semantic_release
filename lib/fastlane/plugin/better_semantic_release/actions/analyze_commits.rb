@@ -205,7 +205,8 @@ module Fastlane
       end
 
       def self.is_codepush_friendly(params)
-        git_command = "git rev-list --max-parents=#{params[:start_hash]} HEAD"
+        git_command = "git rev-list --max-parents=0 #{params[:start_hash]} HEAD"
+        UI.message("git rev-list --max-parents=0 #{params[:start_hash]} HEAD | wc -l")
         # Begining of the branch is taken for codepush analysis
         hash_lines = Actions.sh("#{git_command} | wc -l", log: params[:debug]).chomp
         hash = Actions.sh(git_command, log: params[:debug]).chomp
