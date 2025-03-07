@@ -113,7 +113,7 @@ module Fastlane
         end
 
         # Default last version
-        version = beginning[:version] || params[:version_start]
+        version = params[:version_start] || beginning[:version]
         # If the tag is not found we are taking HEAD as reference
         hash = beginning[:hash] || 'HEAD'
 
